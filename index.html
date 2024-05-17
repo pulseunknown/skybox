@@ -227,84 +227,18 @@
             }
         });
 
-        window.addEventListener('pointerdown', (event) => {
+        // Sélection et interaction pour la souris et le tactile
+        function handleInteraction(event) {
             const mouse = new THREE.Vector2();
-            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-
-            const raycaster = new THREE.Raycaster();
-            raycaster.setFromCamera(mouse, camera);
-
-            const intersects = raycaster.intersectObjects(currentScene === scene1 ? objects1 : objects2);
-
-            if (intersects.length > 0) {
-                selectedObject = intersects[0].object;
-                const intersect = intersects[0];
-                dragOffset.copy(intersect.point).sub(selectedObject.position);
-                isDragging = true;
-                controls.enabled = false; // Désactiver les contrôles de la caméra
-            }
-        });
-
-        window.addEventListener('pointermove', (event) => {
-            if (isDragging && selectedObject) {
-                const mouse = new THREE.Vector2();
+            if (event.touches && event.touches.length > 0) {
+                // Événements tactiles
+                mouse.x = (event.touches[0].clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(event.touches[0].clientY / window.innerHeight) * 2 + 1;
+            } else {
+                // Événements de souris
                 mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
                 mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-
-                const raycaster = new THREE.Raycaster();
-                raycaster.setFromCamera(mouse, camera);
-
-                if (event.ctrlKey || event.metaKey) {
-                    // Déplacement dans toutes les directions
-                    const intersects = raycaster.intersectObjects([plane]);
-                    if (intersects.length > 0) {
-                        const intersect = intersects[0];
-                        selectedObject.position.copy(intersect.point.sub(dragOffset));
-                    }
-                } else {
-                    // Déplacement uniquement sur le plan XY
-                    const planeXY = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
-                    const intersects = raycaster.ray.intersectPlane(planeXY, new THREE.Vector3());
-                    if (intersects) {
-                        selectedObject.position.set(intersects.x - dragOffset.x, intersects.y - dragOffset.y, selectedObject.position.z);
-                    }
-                }
             }
-        });
-
-        window.addEventListener('pointerup', () => {
-            isDragging = false;
-            controls.enabled = true; // Réactiver les contrôles de la caméra
-        });
-
-        window.addEventListener('dblclick', (event) => {
-            const mouse = new THREE.Vector2();
-            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-
-            const raycaster = new THREE.Raycaster();
-            raycaster.setFromCamera(mouse, camera);
-
-            const intersects = raycaster.intersectObjects(objects1);
-
-            if (intersects.length > 0) {
-                const clickedObject = intersects[0].object;
-                if (clickedObject.userData.type === 'folder') {
-                    currentScene = scene2;
-                    prodLabel.style.display = 'none';  // Hide the label when switching to scene 2
-                    backButton.style.display = 'block';  // Show the back button when switching to scene 2
-                    scene2.add(light);
-                    scene2.add(ambientLight);
-                    console.log('Changement de scène');
-                }
-            }
-        });
-
-        window.addEventListener('click', (event) => {
-            const mouse = new THREE.Vector2();
-            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
             const raycaster = new THREE.Raycaster();
             raycaster.setFromCamera(mouse, camera);
@@ -314,20 +248,46 @@
             if (intersects.length > 0) {
                 const newSelectedObject = intersects[0].object;
 
-                // Désélectionner tous les objets non sélectionnés
-                (currentScene === scene1 ? objects1 : objects2).forEach((obj) => {
-                    if (originalColors.has(obj)) {
-                        obj.material.color.set(originalColors.get(obj));
+                if (newSelectedObject === selectedObject) {
+                    // Si l'objet est déjà sélectionné, effectuer l'action associée
+                    if (newSelectedObject.userData.type === 'folder') {
+                        currentScene = scene2;
+                        prodLabel.style.display = 'none';  // Hide the label when switching to scene 2
+                        backButton.style.display = 'block';  // Show the back button when switching to scene 2
+                        scene2.add(light);
+                        scene2.add(ambientLight);
+                        console.log('Changement de scène');
+                    } else if (newSelectedObject.userData.type === 'file') {
+                        if (isPlaying) {
+                            // Arrêter la lecture
+                            stopAudio();
+                        } else {
+                            // Jouer et afficher le lecteur audio avec animation
+                            audioSource.src = `https://raw.githubusercontent.com/pulseunknown/skybox/main/4%20-%20MEMORY%20CARD%20126BPM.mp3`;
+                            audioTitle.textContent = newSelectedObject.userData.name;
+                            audioPlayerContainer.style.display = 'block';
+                            showAudioPlayer();
+                            audioPlayer.load();
+                            audioPlayer.play();
+                            isPlaying = true;
+                        }
                     }
-                });
+                } else {
+                    // Désélectionner tous les objets non sélectionnés
+                    (currentScene === scene1 ? objects1 : objects2).forEach((obj) => {
+                        if (originalColors.has(obj)) {
+                            obj.material.color.set(originalColors.get(obj));
+                        }
+                    });
 
-                // Sauvegarder la couleur d'origine de l'objet sélectionné
-                originalColors.set(newSelectedObject, newSelectedObject.material.color.getHex());
-                // Changer la couleur de l'objet sélectionné pour indiquer la sélection
-                newSelectedObject.material.color.set(0x5572E1);
-                console.log('Selected object:', newSelectedObject);
+                    // Sauvegarder la couleur d'origine de l'objet sélectionné
+                    originalColors.set(newSelectedObject, newSelectedObject.material.color.getHex());
+                    // Changer la couleur de l'objet sélectionné pour indiquer la sélection
+                    newSelectedObject.material.color.set(0x5572E1);
+                    console.log('Selected object:', newSelectedObject);
 
-                selectedObject = newSelectedObject;
+                    selectedObject = newSelectedObject;
+                }
             } else {
                 // Si aucun objet n'est sélectionné, rétablir la couleur d'origine de tous les objets
                 (currentScene === scene1 ? objects1 : objects2).forEach((obj) => {
@@ -337,7 +297,10 @@
                 });
                 selectedObject = null;
             }
-        });
+        }
+
+        window.addEventListener('pointerdown', handleInteraction);
+        window.addEventListener('touchstart', handleInteraction);
 
         function animate() {
             requestAnimationFrame(animate);
