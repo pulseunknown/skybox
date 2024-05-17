@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D File Explorer</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; width: 100%; height: 100vh; }
+        #audioPlayerContainer {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: none;
+            transform-origin: top right;
+            transition: transform 0.5s, opacity 0.5s;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+        #audioTitle {
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+        .showAudio {
+            display: block !important;
+            transform: scale(1);
+            opacity: 1;
+        }
+        .hideAudio {
+            transform: scale(0.1);
+            opacity: 0;
+        }
+        .label {
+            position: absolute;
+            color: white;
+            font-family: Arial, sans-serif;
+            text-align: center;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+        #backButton {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background-color: rgba(255, 255, 255, 0.8);
+            border: none;
+            padding: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            display: none;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.140.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.140.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+    <div id="audioPlayerContainer" class="hideAudio">
+        <div id="audioTitle"></div>
+        <audio id="audioPlayer" controls>
+            <source id="audioSource" src="" type="audio/mp3">
+            Your browser does not support the audio element.
+        </audio>
+    </div>
+    <div id="prodLabel" class="label">PROD</div>
+    <button id="backButton">← Back</button>
+    <script>
+        // Initialisation de la scène, de la caméra et du renderer
+        const scene1 = new THREE.Scene();
+        const scene2 = new THREE.Scene();
+        let currentScene = scene1;
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Contrôles de la caméra
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.25;
+        controls.screenSpacePanning = false;
+
+        camera.position.set(0, 0, 10);
+        controls.update();
+
+        // Lumière
+        const light = new THREE.PointLight(0xffffff, 1, 100);
+        light.position.set(10, 10, 10);
+        currentScene.add(light);
+
+        const ambientLight = new THREE.AmbientLight(0x404040); // soft white light
+        currentScene.add(ambientLight);
+
+        // Charger les images comme textures
+        const textureLoader = new THREE.TextureLoader();
+        const folderTexture = textureLoader.load('https://raw.githubusercontent.com/pulseunknown/skybox/main/Sans%20titre-1.png');
+        const audioTexture = textureLoader.load('https://raw.githubusercontent.com/pulseunknown/skybox/main/fichiers_audio.png');
+
+        // Création des objets pour la scène 1 (dossiers et fichiers audio)
+        const objects1 = [];
+        const spriteMaterial = new THREE.SpriteMaterial({ map: folderTexture });
+        const folder1 = new THREE.Sprite(spriteMaterial);
+        folder1.scale.set(2, 1.5, 1); // Ajuster l'échelle si nécessaire
+        folder1.position.set(0, 0, 0);
+        folder1.userData = { type: 'folder', name: 'PROD' };
+        scene1.add(folder1);
+        objects1.push(folder1);
+
+        // Ajout du nom du dossier
+        const prodLabel = document.getElementById('prodLabel');
+
+        // Mise à jour de la position et de la taille du label
+        function updateLabelPosition() {
+            const scaleThreshold = 0.5; // Seuil de mise à l'échelle pour l'affichage du label
+            if (currentScene === scene1 && folder1.scale.x > scaleThreshold) {
+                const vector = folder1.position.clone();
+                vector.project(camera);
+
+                const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+                const y = (vector.y * -0.5 + 0.5) * window.innerHeight;
+
+                prodLabel.style.transform = `translate(-50%, -50%) translate(${x}px, ${y + 20}px)`;
+                const scale = Math.max(folder1.scale.x, folder1.scale.y);
+                prodLabel.style.fontSize = `${16 * scale}px`;
+                prodLabel.style.display = 'block';
+            } else {
+                prodLabel.style.display = 'none';
+            }
+        }
+
+        // Création des objets pour la scène 2 (fichiers audio)
+        const objects2 = [];
+        const audioSpriteMaterial = new THREE.SpriteMaterial({ map: audioTexture });
+
+        const audioFiles = [
+            '4 - MEMORY CARD 126BPM.mp3', // Nom du fichier audio
+        ];
+
+        audioFiles.forEach((audioFile, index) => {
+            const audioMesh = new THREE.Sprite(audioSpriteMaterial);
+            audioMesh.scale.set(2, 2, 2); // Ajuster l'échelle si nécessaire
+            audioMesh.position.set(index * 2 - 3, 0, 0);
+            audioMesh.userData = { type: 'file', name: audioFile };
+            scene2.add(audioMesh);
+            objects2.push(audioMesh);
+        });
+
+        // Ajouter la skybox
+        const skyboxLoader = new THREE.CubeTextureLoader();
+        const skyboxTexture = skyboxLoader.load([
+            'https://raw.githubusercontent.com/pulseunknown/skybox/main/right.png',  // droite
+            'https://raw.githubusercontent.com/pulseunknown/skybox/main/left.png',  // gauche
+            'https://raw.githubusercontent.com/pulseunknown/skybox/main/top.png',  // haut
+            'https://raw.githubusercontent.com/pulseunknown/skybox/main/bottom.png',  // bas
+            'https://raw.githubusercontent.com/pulseunknown/skybox/main/front.png',  // devant
+            'https://raw.githubusercontent.com/pulseunknown/skybox/main/back.png'   // derrière
+        ]);
+        scene1.background = skyboxTexture;
+        scene2.background = skyboxTexture;
+
+        // Sélection et interaction
+        let selectedObject = null;
+        const originalColors = new Map();
+        let isPlaying = false;
+        let isDragging = false;
+        let dragOffset = new THREE.Vector3();
+
+        const audioPlayerContainer = document.getElementById('audioPlayerContainer');
+        const audioPlayer = document.getElementById('audioPlayer');
+        const audioSource = document.getElementById('audioSource');
+        const audioTitle = document.getElementById('audioTitle');
+        const backButton = document.getElementById('backButton');
+
+        function showAudioPlayer() {
+            audioPlayerContainer.classList.remove('hideAudio');
+            audioPlayerContainer.classList.add('showAudio');
+        }
+
+        function hideAudioPlayer() {
+            audioPlayerContainer.classList.remove('showAudio');
+            audioPlayerContainer.classList.add('hideAudio');
+            setTimeout(() => {
+                audioPlayerContainer.style.display = 'none';
+            }, 500); // Durée de la transition CSS
+        }
+
+        function stopAudio() {
+            if (isPlaying) {
+                audioPlayer.pause();
+                hideAudioPlayer();
+                isPlaying = false;
+            }
+        }
+
+        // Retourner à la scène 1
+        backButton.addEventListener('click', () => {
+            currentScene = scene1;
+            backButton.style.display = 'none';
+            updateLabelPosition();
+            scene1.add(light);
+            scene1.add(ambientLight);
+            console.log('Retour à la scène 1');
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.code === 'Space') {
+                if (selectedObject && selectedObject.userData.type === 'file') {
+                    if (isPlaying) {
+                        // Arrêter la lecture
+                        stopAudio();
+                    } else {
+                        // Jouer et afficher le lecteur audio avec animation
+                        audioSource.src = `https://raw.githubusercontent.com/pulseunknown/skybox/main/4%20-%20MEMORY%20CARD%20126BPM.mp3`;
+                        audioTitle.textContent = selectedObject.userData.name;
+                        audioPlayerContainer.style.display = 'block';
+                        showAudioPlayer();
+                        audioPlayer.load();
+                        audioPlayer.play();
+                        isPlaying = true;
+                    }
+                } else {
+                    // Arrêter la lecture si aucun fichier audio n'est sélectionné
+                    stopAudio();
+                }
+            }
+        });
+
+        window.addEventListener('pointerdown', (event) => {
+            const mouse = new THREE.Vector2();
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, camera);
+
+            const intersects = raycaster.intersectObjects(currentScene === scene1 ? objects1 : objects2);
+
+            if (intersects.length > 0) {
+                selectedObject = intersects[0].object;
+                const intersect = intersects[0];
+                dragOffset.copy(intersect.point).sub(selectedObject.position);
+                isDragging = true;
+                controls.enabled = false; // Désactiver les contrôles de la caméra
+            }
+        });
+
+        window.addEventListener('pointermove', (event) => {
+            if (isDragging && selectedObject) {
+                const mouse = new THREE.Vector2();
+                mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+                const raycaster = new THREE.Raycaster();
+                raycaster.setFromCamera(mouse, camera);
+
+                if (event.ctrlKey || event.metaKey) {
+                    // Déplacement dans toutes les directions
+                    const intersects = raycaster.intersectObjects([plane]);
+                    if (intersects.length > 0) {
+                        const intersect = intersects[0];
+                        selectedObject.position.copy(intersect.point.sub(dragOffset));
+                    }
+                } else {
+                    // Déplacement uniquement sur le plan XY
+                    const planeXY = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+                    const intersects = raycaster.ray.intersectPlane(planeXY, new THREE.Vector3());
+                    if (intersects) {
+                        selectedObject.position.set(intersects.x - dragOffset.x, intersects.y - dragOffset.y, selectedObject.position.z);
+                    }
+                }
+            }
+        });
+
+        window.addEventListener('pointerup', () => {
+            isDragging = false;
+            controls.enabled = true; // Réactiver les contrôles de la caméra
+        });
+
+        window.addEventListener('dblclick', (event) => {
+            const mouse = new THREE.Vector2();
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, camera);
+
+            const intersects = raycaster.intersectObjects(objects1);
+
+            if (intersects.length > 0) {
+                const clickedObject = intersects[0].object;
+                if (clickedObject.userData.type === 'folder') {
+                    currentScene = scene2;
+                    prodLabel.style.display = 'none';  // Hide the label when switching to scene 2
+                    backButton.style.display = 'block';  // Show the back button when switching to scene 2
+                    scene2.add(light);
+                    scene2.add(ambientLight);
+                    console.log('Changement de scène');
+                }
+            }
+        });
+
+        window.addEventListener('click', (event) => {
+            const mouse = new THREE.Vector2();
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, camera);
+
+            const intersects = raycaster.intersectObjects(currentScene === scene1 ? objects1 : objects2);
+
+            if (intersects.length > 0) {
+                const newSelectedObject = intersects[0].object;
+
+                // Désélectionner tous les objets non sélectionnés
+                (currentScene === scene1 ? objects1 : objects2).forEach((obj) => {
+                    if (originalColors.has(obj)) {
+                        obj.material.color.set(originalColors.get(obj));
+                    }
+                });
+
+                // Sauvegarder la couleur d'origine de l'objet sélectionné
+                originalColors.set(newSelectedObject, newSelectedObject.material.color.getHex());
+                // Changer la couleur de l'objet sélectionné pour indiquer la sélection
+                newSelectedObject.material.color.set(0x5572E1);
+                console.log('Selected object:', newSelectedObject);
+
+                selectedObject = newSelectedObject;
+            } else {
+                // Si aucun objet n'est sélectionné, rétablir la couleur d'origine de tous les objets
+                (currentScene === scene1 ? objects1 : objects2).forEach((obj) => {
+                    if (originalColors.has(obj)) {
+                        obj.material.color.set(originalColors.get(obj));
+                    }
+                });
+                selectedObject = null;
+            }
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(currentScene, camera);
+            updateLabelPosition();
+        }
+
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Afficher un message si tout s'est bien passé jusqu'ici
+        console.log('Script chargé et exécuté sans erreur.');
+    </script>
+</body>
+</html>
